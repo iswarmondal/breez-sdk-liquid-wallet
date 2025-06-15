@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { saveMnemonic } from '$lib/services/walletService';
-	import { onMount } from 'svelte';
 
 	let mnemonic = '';
 	let error = '';
@@ -20,7 +19,7 @@
 
 <div class="navbar bg-base-200 mb-8">
 	<div class="navbar-center">
-		<a class="btn btn-ghost text-xl">Breez Self Custody Wallet</a>
+		<button class="btn btn-ghost text-xl" onclick={() => goto('/')}>Breez Self Custody Wallet</button>
 	</div>
 </div>
 
@@ -39,7 +38,7 @@
 					<span>{error}</span>
 				</div>
 			{/if}
-			<button class="btn btn-primary w-full" on:click={handleImport}>Import</button>
+			<button class="btn btn-primary w-full" onclick={handleImport}>Import</button>
 		</div>
 	</div>
 </div>

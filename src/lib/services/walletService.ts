@@ -24,6 +24,7 @@ export const initWallet = async (mnemonic: string): Promise<void> => {
 			mnemonic
 		});
 
+		console.log('Wallet initialized successfully');
 		// Return void instead of the SDK instance
 	} catch (error) {
 		console.error('Failed to initialize wallet:', error);

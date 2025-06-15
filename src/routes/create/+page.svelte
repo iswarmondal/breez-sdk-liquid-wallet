@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { getSavedMnemonic, saveMnemonic } from '$lib/services/walletService';
 	import * as bip39 from 'bip39';
+	import { goto } from '$app/navigation';
 
 	let mnemonic: string | null = null;
 	let loading = true;
@@ -29,7 +30,7 @@
 
 <div class="navbar bg-base-200 mb-8">
 	<div class="navbar-center">
-		<button class="btn btn-ghost text-xl">Breez Self Custody Wallet</button>
+		<button class="btn btn-ghost text-xl" onclick={() => goto('/')}>Breez Self Custody Wallet</button>
 	</div>
 </div>
 

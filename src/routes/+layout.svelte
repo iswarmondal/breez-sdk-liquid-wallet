@@ -3,7 +3,7 @@
 	import { initWasm } from '$lib/services/wasmLoader';
 	import '../app.css';
 	let { children } = $props();
-	
+
 	onMount(async () => {
 		await initWasm();
 	});
