@@ -6,12 +6,6 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
 	plugins: [wasm(), nodePolyfills(), tailwindcss(), sveltekit()],
-	build: {
-		target: 'esnext',
-		outDir: 'dist',
-		assetsDir: 'assets',
-		sourcemap: true
-	},
 	optimizeDeps: {
 		exclude: ['@breeztech/breez-sdk-liquid/web']
 	}
