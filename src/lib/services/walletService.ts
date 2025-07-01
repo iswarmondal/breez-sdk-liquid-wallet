@@ -55,10 +55,31 @@ export const sendPayment = async (
 	return await sdk.sendPayment(params);
 };
 
+// On-chain payment operations (for Bitcoin addresses)
+export const preparePayOnchain = async (
+	params: breezSdk.PreparePayOnchainRequest
+): Promise<breezSdk.PreparePayOnchainResponse> => {
+	if (!sdk) throw new Error('SDK not initialized');
+	return await sdk.preparePayOnchain(params);
+};
+
+export const payOnchain = async (
+	params: breezSdk.PayOnchainRequest
+): Promise<breezSdk.SendPaymentResponse> => {
+	if (!sdk) throw new Error('SDK not initialized');
+	return await sdk.payOnchain(params);
+};
+
 // Invoice and Receiving Operations
 export const fetchLightningLimits = async (): Promise<breezSdk.LightningPaymentLimitsResponse> => {
 	if (!sdk) throw new Error('SDK not initialized');
 	return await sdk.fetchLightningLimits();
+};
+
+// Fetch On-chain (Liquid) limits
+export const fetchOnchainLimits = async (): Promise<breezSdk.OnchainPaymentLimitsResponse> => {
+	if (!sdk) throw new Error('SDK not initialized');
+	return await sdk.fetchOnchainLimits();
 };
 
 export const prepareReceivePayment = async (
