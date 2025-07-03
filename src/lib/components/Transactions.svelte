@@ -174,7 +174,7 @@
 
 		<!-- Refresh Button -->
 		<button class="btn btn-outline btn-sm mb-4" on:click={refreshData}> 🔄 Refresh </button>
-
+		<a href="/multisig" class="btn btn-outline btn-sm mb-4"> 🤝 Multisig Setup </a>
 		<!-- Transaction History -->
 		<div class="w-full">
 			<h3 class="mb-4 flex items-center text-lg font-semibold">

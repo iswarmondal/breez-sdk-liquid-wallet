@@ -1,4 +1,5 @@
 import * as breezSdk from '@breeztech/breez-sdk-liquid/web';
+import { MultiSigSigner, createMultiSigSigner } from './customSigner';
 
 // Private SDK instance - not exposed outside this module
 let sdk: breezSdk.BindingLiquidSdk | null = null;
@@ -32,7 +33,98 @@ export const initWallet = async (mnemonic: string): Promise<void> => {
 	}
 };
 
-// Remove getSdk() method
+/**
+ * Initialize wallet with custom multisig signer
+ * This is the new method for multisig wallets
+ */
+export const initWalletWithMultisig = async (
+	mnemonic: string,
+	cosignerPublicKeys: string[], // Public keys of other signers
+	threshold: number, // Minimum signatures required (e.g., 2 for 2-of-3)
+	signerIndex: number // This signer's position (0, 1, 2, etc.)
+): Promise<void> => {
+	try {
+		// Create the SDK config
+		const config = breezSdk.defaultConfig('testnet');
+		config.workingDir = './breez_data';
+
+		// Get the API key from environment variables
+		const breezApiKey = import.meta.env.VITE_BREEZ_API_KEY;
+
+		if (!breezApiKey) {
+			throw new Error('Breez API key not found in environment variables');
+		}
+
+		config.breezApiKey = breezApiKey;
+
+		// Create the custom multisig signer
+		const customSigner = await createMultiSigSigner(
+			mnemonic,
+			cosignerPublicKeys,
+			threshold,
+			signerIndex
+		);
+
+		// Connect using the custom signer instead of mnemonic
+		sdk = await breezSdk.connectWithSigner({ config }, customSigner);
+
+		console.log('Multisig wallet initialized successfully');
+		console.log(`Configuration: ${threshold}-of-${cosignerPublicKeys.length + 1} multisig`);
+		console.log(`Your signer index: ${signerIndex}`);
+	} catch (error) {
+		console.error('Failed to initialize multisig wallet:', error);
+		throw error;
+	}
+};
+
+/**
+ * Check if current wallet is using multisig
+ * This helps UI components know what features to show
+ */
+export const isMultisigWallet = (): boolean => {
+	// You could store this flag when initializing the wallet
+	// For now, we'll check if there's a custom signer instance
+	return localStorage.getItem('walletType') === 'multisig';
+};
+
+/**
+ * Save multisig configuration to localStorage
+ * This helps restore the wallet on app restart
+ */
+export const saveMultisigConfig = (config: {
+	threshold: number;
+	cosignerPublicKeys: string[];
+	signerIndex: number;
+}): void => {
+	localStorage.setItem('walletType', 'multisig');
+	localStorage.setItem('multisigConfig', JSON.stringify(config));
+};
+
+/**
+ * Get saved multisig configuration
+ */
+export const getMultisigConfig = (): {
+	threshold: number;
+	cosignerPublicKeys: string[];
+	signerIndex: number;
+} | null => {
+	const configStr = localStorage.getItem('multisigConfig');
+	if (!configStr) return null;
+
+	try {
+		return JSON.parse(configStr);
+	} catch {
+		return null;
+	}
+};
+
+/**
+ * Clear multisig configuration
+ */
+export const clearMultisigConfig = (): void => {
+	localStorage.removeItem('walletType');
+	localStorage.removeItem('multisigConfig');
+};
 
 // Add specific methods for actions components need to perform
 // Payment Operations
