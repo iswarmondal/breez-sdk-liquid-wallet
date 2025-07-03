@@ -1,7 +1,10 @@
 import * as breezSdk from '@breeztech/breez-sdk-liquid/web';
 import { BIP32Factory, type BIP32Interface } from 'bip32';
 import * as bip39 from 'bip39';
+import type { RecoveryIdType } from 'tiny-secp256k1';
 import * as ecc from 'tiny-secp256k1';
+import { hmac } from '@noble/hashes/hmac';
+import { sha256 } from '@noble/hashes/sha2';
 
 // Create bip32 instance with tiny-secp256k1
 const bip32 = BIP32Factory(ecc);
@@ -121,17 +124,56 @@ export class MultiSigSigner implements breezSdk.Signer {
 
 	/**
 	 * Sign a message using recoverable ECDSA
-	 * Used for certain Bitcoin operations
+	 * Used for certain Bitcoin operations and message signing
+	 * Returns signature + recovery ID (65 bytes total)
 	 */
 	signEcdsaRecoverable = (msg: number[]): number[] => {
 		try {
 			console.log('Signing message with recoverable ECDSA');
+			console.log('Message to sign (first 10 bytes):', msg.slice(0, 10));
 
-			// TODO: Implement recoverable ECDSA signing for multisig
-			// This includes a recovery ID to identify which key was used
+			// For recoverable ECDSA, we typically use the master key directly
+			// (not a derived key) as it's often used for general message signing
+			if (!this.hdNode.privateKey) {
+				throw new Error('No private key available for recoverable ECDSA signing');
+			}
 
-			// Placeholder: return a dummy recoverable signature (signature + recovery id)
-			return new Array(65).fill(0).map(() => Math.floor(Math.random() * 256));
+			// Step 1: Convert message from number[] to Uint8Array
+			const messageBytes = new Uint8Array(msg);
+
+			// Step 2: Use tiny-secp256k1's signRecoverable function
+			// This directly gives us both the signature and recovery ID
+			const result = ecc.signRecoverable(messageBytes, this.hdNode.privateKey);
+
+			if (!result) {
+				throw new Error('Failed to create recoverable signature');
+			}
+
+			const { signature, recoveryId } = result;
+
+			// Step 3: Validate the signature was created successfully
+			if (!signature || recoveryId === undefined) {
+				throw new Error('Invalid signature or recovery ID returned');
+			}
+
+			// Step 4: Verify our recoverable signature works by testing recovery
+			const recoveredPublicKey = this.recoverPublicKey(messageBytes, signature, recoveryId);
+			if (!recoveredPublicKey || !this.arraysEqual(recoveredPublicKey, this.hdNode.publicKey)) {
+				throw new Error('Created recoverable signature is invalid - recovery test failed');
+			}
+
+			// Step 5: Combine signature (64 bytes) + recovery ID (1 byte) = 65 bytes
+			const recoverableSignature = new Uint8Array(65);
+			recoverableSignature.set(signature, 0); // First 64 bytes: signature
+			recoverableSignature[64] = recoveryId; // Last byte: recovery ID
+
+			console.log(`✅ Successfully created recoverable signature`);
+			console.log(`📝 Signature length: ${signature.length} bytes`);
+			console.log(`🔄 Recovery ID: ${recoveryId}`);
+			console.log(`🔑 Public key recovered successfully`);
+
+			// Step 6: Return as number array (what Breez SDK expects)
+			return Array.from(recoverableSignature);
 		} catch (error) {
 			console.error('Error signing with recoverable ECDSA:', error);
 			throw error;
@@ -139,17 +181,59 @@ export class MultiSigSigner implements breezSdk.Signer {
 	};
 
 	/**
+	 * Helper function to recover public key from signature
+	 * This is used internally to validate recoverable signatures
+	 */
+	private recoverPublicKey = (
+		messageHash: Uint8Array,
+		signature: Uint8Array,
+		recoveryId: RecoveryIdType
+	): Uint8Array | null => {
+		try {
+			console.log(`🔍 Attempting to recover public key with recovery ID: ${recoveryId}`);
+
+			// Use tiny-secp256k1's recover function to get the public key
+			// The recover function signature is: recover(hash, signature, recoveryId, compressed = false)
+			const recoveredKey = ecc.recover(messageHash, signature, recoveryId, true); // compressed = true
+
+			if (!recoveredKey) {
+				console.log(`❌ Recovery failed for recovery ID: ${recoveryId}`);
+				return null;
+			}
+
+			console.log(`✅ Successfully recovered public key using recovery ID: ${recoveryId}`);
+			console.log(`📏 Recovered key length: ${recoveredKey.length} bytes`);
+
+			// Convert Buffer to Uint8Array if needed
+			return new Uint8Array(recoveredKey);
+		} catch (error) {
+			console.error('Error recovering public key:', error);
+			return null;
+		}
+	};
+
+	/**
+	 * Helper function to compare two Uint8Arrays
+	 */
+	private arraysEqual = (a: Uint8Array, b: Uint8Array): boolean => {
+		if (a.length !== b.length) return false;
+		for (let i = 0; i < a.length; i++) {
+			if (a[i] !== b[i]) return false;
+		}
+		return true;
+	};
+
+	/**
 	 * Get the SLIP-77 master blinding key
 	 * Used for Liquid confidential transactions
+	 * TODO: Implement when privacy features are needed
 	 */
 	slip77MasterBlindingKey = (): number[] => {
 		try {
-			console.log('Getting SLIP-77 master blinding key');
+			console.log('Getting SLIP-77 master blinding key (placeholder)');
 
-			// TODO: Implement proper SLIP-77 key derivation
-			// SLIP-77 is used for blinding keys in confidential transactions
-
-			// Placeholder: derive from master key
+			// TODO: Implement proper SLIP-77 key derivation when privacy features are needed
+			// For now, return a deterministic placeholder based on the master key
 			return Array.from(this.hdNode.publicKey.slice(0, 32));
 		} catch (error) {
 			console.error('Error getting SLIP-77 master blinding key:', error);
@@ -158,18 +242,78 @@ export class MultiSigSigner implements breezSdk.Signer {
 	};
 
 	/**
-	 * Compute HMAC-SHA256
-	 * Used for various cryptographic operations
+	 * Compute HMAC-SHA256 (Hash-based Message Authentication Code)
+	 * Used for various cryptographic operations including key derivation and message authentication
 	 */
 	hmacSha256 = (msg: number[], derivationPath: string): number[] => {
 		try {
 			console.log(`Computing HMAC-SHA256 for path: ${derivationPath}`);
+			console.log('Message to authenticate (first 10 bytes):', msg.slice(0, 10));
 
-			// TODO: Implement proper HMAC-SHA256
-			// This typically uses the derived key as the HMAC key
+			// Step 1: Derive the specific private key for this derivation path
+			// This key will be used as the HMAC secret key
+			const childNode = this.hdNode.derivePath(derivationPath);
 
-			// Placeholder: return dummy HMAC
-			return new Array(32).fill(0).map(() => Math.floor(Math.random() * 256));
+			if (!childNode.privateKey) {
+				throw new Error(`No private key available for derivation path: ${derivationPath}`);
+			}
+
+			// Step 2: Convert message from number[] to Uint8Array
+			const messageBytes = new Uint8Array(msg);
+
+			// Step 3: Use the derived private key as the HMAC secret key
+			// The private key provides the secret that authenticates the message
+			const hmacKey = childNode.privateKey;
+
+			console.log(`🔑 Using derived key from path: ${derivationPath}`);
+			console.log(`📝 Message length: ${messageBytes.length} bytes`);
+			console.log(`🗝️ HMAC key length: ${hmacKey.length} bytes`);
+
+			// Step 4: Compute HMAC-SHA256
+			// HMAC(key, message) = SHA256(key ⊕ opad || SHA256(key ⊕ ipad || message))
+			// ⊕ is the XOR operation and || is the concatenation operation
+			// But we use the @noble/hashes library which handles this complex process
+			const hmacResult = hmac(sha256, hmacKey, messageBytes);
+
+			// Step 5: Validate the result
+			if (!hmacResult || hmacResult.length !== 32) {
+				throw new Error('HMAC computation failed or returned invalid length');
+			}
+
+			// Step 6: Cross-check HMAC result by recomputing and verifying consistency
+			console.log(`🔍 Cross-checking HMAC computation...`);
+
+			// Recompute HMAC with the same inputs to verify consistency
+			const hmacVerification = hmac(sha256, hmacKey, messageBytes);
+
+			// Verify that both computations produce the same result
+			if (!this.arraysEqual(hmacResult, hmacVerification)) {
+				throw new Error('HMAC verification failed - inconsistent results detected');
+			}
+
+			// Additional validation: Check that HMAC changes when input changes
+			// This helps detect if our HMAC implementation is working correctly
+			const testMessage = new Uint8Array([...messageBytes]);
+			if (testMessage.length > 0) {
+				testMessage[0] = testMessage[0] ^ 0x01; // Flip one bit
+				const differentHmac = hmac(sha256, hmacKey, testMessage);
+
+				if (this.arraysEqual(hmacResult, differentHmac)) {
+					throw new Error('HMAC validation failed - result should change when input changes');
+				}
+			}
+
+			console.log(`✅ Successfully computed and verified HMAC-SHA256`);
+			console.log(`📏 HMAC result length: ${hmacResult.length} bytes`);
+			console.log(
+				`🔍 HMAC (first 8 bytes): ${Array.from(hmacResult.slice(0, 8))
+					.map((b) => b.toString(16).padStart(2, '0'))
+					.join('')}`
+			);
+			console.log(`🔐 HMAC verification: PASSED`);
+
+			// Step 7: Return as number array (what Breez SDK expects)
+			return Array.from(hmacResult);
 		} catch (error) {
 			console.error('Error computing HMAC-SHA256:', error);
 			throw error;
