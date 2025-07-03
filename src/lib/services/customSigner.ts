@@ -1,4 +1,10 @@
 import * as breezSdk from '@breeztech/breez-sdk-liquid/web';
+import { BIP32Factory, type BIP32Interface } from 'bip32';
+import * as bip39 from 'bip39';
+import * as ecc from 'tiny-secp256k1';
+
+// Create bip32 instance with tiny-secp256k1
+const bip32 = BIP32Factory(ecc);
 
 /**
  * Custom Multi-Signature Signer for Breez SDK
@@ -7,18 +13,18 @@ import * as breezSdk from '@breeztech/breez-sdk-liquid/web';
  * multi-signature wallets where multiple parties need to sign transactions.
  */
 export class MultiSigSigner implements breezSdk.Signer {
-	private masterKey: Uint8Array;
+	private hdNode: BIP32Interface;
 	private cosignerKeys: Uint8Array[]; // Public keys of other signers
 	private threshold: number; // Minimum signatures required (e.g., 2 of 3)
 	private signerIndex: number; // This signer's position in the multisig setup
 
 	constructor(
-		masterKey: Uint8Array,
+		hdNode: BIP32Interface,
 		cosignerKeys: Uint8Array[],
 		threshold: number,
 		signerIndex: number
 	) {
-		this.masterKey = masterKey;
+		this.hdNode = hdNode;
 		this.cosignerKeys = cosignerKeys;
 		this.threshold = threshold;
 		this.signerIndex = signerIndex;
@@ -30,10 +36,8 @@ export class MultiSigSigner implements breezSdk.Signer {
 	 */
 	xpub = (): number[] => {
 		try {
-			// TODO: Implement proper xpub derivation from master key
-			// For now, return the master key as a starting point
 			console.log('Deriving xpub from master key');
-			return Array.from(this.masterKey);
+			return Array.from(this.hdNode.publicKey);
 		} catch (error) {
 			console.error('Error deriving xpub:', error);
 			throw error;
@@ -56,7 +60,8 @@ export class MultiSigSigner implements breezSdk.Signer {
 			// 2. Apply BIP32 key derivation
 			// 3. Return the derived public key
 
-			return Array.from(this.masterKey);
+			const derivedNode = this.hdNode.derivePath(derivationPath);
+			return Array.from(derivedNode.publicKey);
 		} catch (error) {
 			console.error('Error deriving xpub for path:', derivationPath, error);
 			throw error;
@@ -64,23 +69,50 @@ export class MultiSigSigner implements breezSdk.Signer {
 	};
 
 	/**
-	 * Sign a message using ECDSA
+	 * Sign a message using ECDSA (Elliptic Curve Digital Signature Algorithm)
 	 * This is where multisig coordination happens
 	 */
 	signEcdsa = (msg: number[], derivationPath: string): number[] => {
 		try {
 			console.log(`Signing message with ECDSA for path: ${derivationPath}`);
-			console.log('Message to sign:', msg);
+			console.log('Message to sign (first 10 bytes):', msg.slice(0, 10));
 
-			// TODO: Implement multisig ECDSA signing
-			// Steps for multisig:
-			// 1. Sign with our private key
-			// 2. Coordinate with other signers to collect signatures
-			// 3. Combine signatures according to multisig scheme
+			// Step 1: Derive the specific private key for this path
+			const childNode = this.hdNode.derivePath(derivationPath);
 
-			// Placeholder: return a dummy signature
-			// In reality, this would be a proper ECDSA signature
-			return new Array(64).fill(0).map(() => Math.floor(Math.random() * 256));
+			// Ensure we have a private key (should always be true for HD nodes created from seed)
+			if (!childNode.privateKey) {
+				throw new Error(`No private key available for derivation path: ${derivationPath}`);
+			}
+
+			// Step 2: Convert the message from number[] to Uint8Array
+			const messageBytes = new Uint8Array(msg);
+
+			// Step 3: Sign the message using the elliptic curve cryptography library
+			// The message should already be hashed (typically SHA256)
+			const signature = ecc.sign(messageBytes, childNode.privateKey);
+
+			// Step 4: Validate the signature was created successfully
+			if (!signature) {
+				throw new Error('Failed to create signature');
+			}
+
+			// Step 5: Verify our own signature (good practice)
+			const isValid = ecc.verify(messageBytes, childNode.publicKey, signature);
+			if (!isValid) {
+				throw new Error('Created signature is invalid - this should not happen');
+			}
+
+			console.log(`✅ Successfully signed message with key at path: ${derivationPath}`);
+			console.log(`📝 Signature length: ${signature.length} bytes`);
+			console.log(
+				`🔑 Public key: ${Array.from(childNode.publicKey)
+					.map((b) => b.toString(16).padStart(2, '0'))
+					.join('')}`
+			);
+
+			// Step 6: Return signature as number array (what Breez SDK expects)
+			return Array.from(signature);
 		} catch (error) {
 			console.error('Error signing with ECDSA:', error);
 			throw error;
@@ -118,7 +150,7 @@ export class MultiSigSigner implements breezSdk.Signer {
 			// SLIP-77 is used for blinding keys in confidential transactions
 
 			// Placeholder: derive from master key
-			return Array.from(this.masterKey.slice(0, 32));
+			return Array.from(this.hdNode.publicKey.slice(0, 32));
 		} catch (error) {
 			console.error('Error getting SLIP-77 master blinding key:', error);
 			throw error;
@@ -239,24 +271,43 @@ export async function createMultiSigSigner(
 	signerIndex: number
 ): Promise<MultiSigSigner> {
 	try {
-		// TODO: Implement proper seed derivation from mnemonic
-		// This should use BIP39 to convert mnemonic to seed
+		// Convert mnemonic to seed using BIP39
+		const seed = bip39.mnemonicToSeedSync(mnemonic);
 
-		// Placeholder: create a dummy master key from mnemonic
-		const encoder = new TextEncoder();
-		const seedBytes = encoder.encode(mnemonic);
-		const masterKey = new Uint8Array(32);
-		for (let i = 0; i < Math.min(seedBytes.length, 32); i++) {
-			masterKey[i] = seedBytes[i];
-		}
+		// Create hierarchical deterministic (HD) node from seed using the bip32 factory
+		const hdNode = bip32.fromSeed(seed);
 
 		// Convert cosigner public keys from hex to Uint8Array
 		const cosignerKeys = cosignerPublicKeys.map((key) => {
-			// TODO: Implement proper hex decoding
-			return new Uint8Array(32); // Placeholder
+			// Remove any "0x" prefix if present
+			const cleanKey = key.startsWith('0x') ? key.slice(2) : key;
+
+			// Validate hex string format
+			if (!/^[0-9a-fA-F]+$/.test(cleanKey)) {
+				throw new Error(`Invalid hex string format: ${key}`);
+			}
+
+			// Public keys should be 33 bytes (66 hex characters) for compressed format
+			// or 65 bytes (130 hex characters) for uncompressed format
+			const expectedLengths = [66, 130]; // 33 bytes * 2, 65 bytes * 2
+			if (!expectedLengths.includes(cleanKey.length)) {
+				throw new Error(
+					`Invalid public key length: ${cleanKey.length}. Expected 66 or 130 hex characters`
+				);
+			}
+
+			// Convert hex string to Uint8Array
+			const bytes = new Uint8Array(cleanKey.length / 2);
+			for (let i = 0; i < cleanKey.length; i += 2) {
+				const hexByte = cleanKey.slice(i, i + 2);
+				bytes[i / 2] = parseInt(hexByte, 16);
+			}
+
+			console.log(`Converted public key: ${key} -> ${bytes.length} bytes`);
+			return bytes;
 		});
 
-		return new MultiSigSigner(masterKey, cosignerKeys, threshold, signerIndex);
+		return new MultiSigSigner(hdNode, cosignerKeys, threshold, signerIndex);
 	} catch (error) {
 		console.error('Error creating MultisigSigner:', error);
 		throw error;
