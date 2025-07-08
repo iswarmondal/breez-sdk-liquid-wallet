@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { walletStore } from '$lib/stores/walletStore';
-	import { createMultisigTx } from '$lib/services/walletService';
-	import QRCode from 'qrcode';
+ 	import { walletStore } from '$lib/stores/walletStore';
+ 	import { createMultisigTx } from '$lib/services/walletService';
+ 	import QRCode from 'qrcode';
+ 	import { Buffer } from 'buffer';
 
 	// --- Fund Wallet ---
 	let qrCodeUrl = '';

@@ -43,6 +43,7 @@
 		"bip32": "^5.0.0-rc.0",
 		"bip39": "^3.1.0",
 		"bitcoinjs-lib": "^6.1.7",
+		"buffer": "^6.0.3",
 		"liquidjs-lib": "^6.0.2-liquid.37",
 		"qrcode": "^1.5.4",
 		"tiny-secp256k1": "^2.2.4"
