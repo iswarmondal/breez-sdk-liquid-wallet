@@ -1,4 +1,5 @@
 import * as breezSdk from '@breeztech/breez-sdk-liquid/web';
+import { Buffer } from 'buffer';
 import { MultiSigSigner, createMultiSigSigner } from './customSigner';
 import { coordinationService } from './coordinationService';
 import type { PayOnchainRequest, SendPaymentResponse } from '@breeztech/breez-sdk-liquid/web';

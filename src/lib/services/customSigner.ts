@@ -1,4 +1,5 @@
 import * as breezSdk from '@breeztech/breez-sdk-liquid/web';
+import { Buffer } from 'buffer';
 import { BIP32Factory, type BIP32Interface } from 'bip32';
 import * as bip39 from 'bip39';
 import type { RecoveryIdType } from 'tiny-secp256k1';

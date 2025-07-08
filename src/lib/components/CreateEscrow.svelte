@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { walletStore } from '$lib/stores/walletStore';
-	import { createMultisigTx, getPsbtDetails } from '$lib/services/walletService';
+ 	import { createMultisigTx, getPsbtDetails } from '$lib/services/walletService';
+	import { Buffer } from 'buffer';
 
 	let recipientAddress = '';
 	let amount = 0;

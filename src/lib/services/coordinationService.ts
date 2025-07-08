@@ -1,4 +1,5 @@
 import liquidjs from 'liquidjs-lib';
+import { Buffer } from 'buffer';
 const { networks, Psbt, address: liquidAddress, payments } = liquidjs;
 import type { MultiSigSigner } from './customSigner';
 import { sha256 } from '@noble/hashes/sha2';

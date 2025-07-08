@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { Buffer } from 'buffer';
 import type { MultiSigSigner } from '$lib/services/customSigner';
 import type { MultisigWalletConfig } from '$lib/services/storageService';
 import {
