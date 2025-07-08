@@ -210,7 +210,7 @@
 					<div class="card-actions mt-4 justify-end">
 						<button class="btn btn-primary" on:click={handleCreate} disabled={isLoading}>
 							{#if isLoading}
-								<span class="loading loading-spinner loading-xs" />
+								<span class="loading loading-spinner loading-xs"></span>
 							{/if}
 							Continue
 						</button>
@@ -224,21 +224,30 @@
 						invitation code below so they can join.
 					</p>
 					<div class="form-control mt-4 w-full">
-						<label class="label">
+						<label class="label" for="myPublicKeyInput">
 							<span class="label-text font-semibold">Your Public Key</span>
 						</label>
-						<input type="text" readonly value={myPublicKey} class="input input-bordered w-full" />
+						<input
+							id="myPublicKeyInput"
+							type="text"
+							readonly
+							value={myPublicKey}
+							class="input input-bordered w-full"
+						/>
 						<button
 							class="btn btn-sm mt-2"
 							on:click={() => navigator.clipboard.writeText(myPublicKey)}>Copy Key</button
 						>
 					</div>
 					<div class="form-control mt-4 w-full">
-						<label class="label">
+						<label class="label" for="invitationCodeTextarea">
 							<span class="label-text font-semibold">Invitation Code</span>
 						</label>
-						<textarea readonly class="textarea textarea-bordered w-full" rows="3"
-							>{createJoinCode()}</textarea
+						<textarea
+							id="invitationCodeTextarea"
+							readonly
+							class="textarea textarea-bordered w-full"
+							rows="3">{createJoinCode()}</textarea
 						>
 						<button
 							class="btn btn-sm mt-2"

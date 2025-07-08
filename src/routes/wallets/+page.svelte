@@ -21,7 +21,7 @@
 	<div class="navbar-center">
 		<h1 class="text-xl font-bold">My Multisig Wallets</h1>
 	</div>
-	<div class="navbar-end" />
+	<div class="navbar-end"></div>
 </div>
 
 <div class="mx-auto max-w-2xl p-4">

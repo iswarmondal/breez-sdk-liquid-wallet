@@ -91,7 +91,7 @@
 				class="textarea textarea-bordered w-full"
 				rows="4"
 				placeholder="Paste the PSBT received from a co-signer"
-			/>
+			></textarea>
 		</div>
 
 		{#if psbtDetails}
@@ -105,7 +105,8 @@
 
 		<div class="card-actions mt-4 justify-end gap-2">
 			<button class="btn btn-secondary" on:click={handleSign} disabled={isLoading || !psbtInput}>
-				{#if isLoading && !isBroadcasting}<span class="loading loading-spinner loading-xs" />{/if}
+				{#if isLoading && !isBroadcasting}<span class="loading loading-spinner loading-xs"
+					></span>{/if}
 				Sign
 			</button>
 			<button class="btn btn-accent" on:click={handleFinalize} disabled={isLoading || !psbtInput}>
@@ -134,7 +135,7 @@
 					on:click={handleBroadcast}
 					disabled={isBroadcasting}
 				>
-					{#if isBroadcasting}<span class="loading loading-spinner loading-xs" />{/if}
+					{#if isBroadcasting}<span class="loading loading-spinner loading-xs"></span>{/if}
 					Broadcast Transaction
 				</button>
 			</div>
@@ -178,7 +179,7 @@
 			{#if !broadcastResult}
 				<div class="modal-action">
 					<button class="btn btn-primary" on:click={handleBroadcast} disabled={isBroadcasting}>
-						{#if isBroadcasting}<span class="loading loading-spinner loading-xs" />{/if}
+						{#if isBroadcasting}<span class="loading loading-spinner loading-xs"></span>{/if}
 						Broadcast
 					</button>
 					<button class="btn" on:click={() => (showModal = false)}>Cancel</button>

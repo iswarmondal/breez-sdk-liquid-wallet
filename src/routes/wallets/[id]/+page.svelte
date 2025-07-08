@@ -48,23 +48,23 @@
 	</div>
 	<div class="navbar-end">
 		<div class="dropdown dropdown-end">
-			<label tabindex="0" class="btn btn-ghost btn-circle">
+			<button class="btn btn-ghost btn-circle" aria-label="Open menu">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="h-5 w-5"
 					fill="none"
 					viewBox="0 0 24 24"
 					stroke="currentColor"
-					><path
+				>
+					<path
 						stroke-linecap="round"
 						stroke-linejoin="round"
 						stroke-width="2"
 						d="M4 6h16M4 12h16M4 18h7"
-					/></svg
-				>
-			</label>
+					/>
+				</svg>
+			</button>
 			<ul
-				tabindex="0"
 				class="menu menu-compact dropdown-content bg-base-100 rounded-box mt-3 w-52 p-2 shadow"
 			>
 				<li><button on:click={deleteWallet} class="text-error">Delete Wallet</button></li>
@@ -76,7 +76,7 @@
 <div class="mx-auto max-w-4xl p-4">
 	{#if $walletStore.loading && !$walletStore.initialized}
 		<div class="flex flex-col items-center justify-center gap-4">
-			<span class="loading loading-spinner loading-lg" />
+			<span class="loading loading-spinner loading-lg"></span>
 			<p>Initializing wallet...</p>
 		</div>
 	{:else if $walletStore.error}
