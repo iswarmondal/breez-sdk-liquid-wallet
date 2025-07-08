@@ -6,7 +6,7 @@ import topLevelAwait from 'vite-plugin-top-level-await';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
-	plugins: [topLevelAwait(), wasm(), nodePolyfills(), tailwindcss(), sveltekit()],
+	plugins: [topLevelAwait(), wasm(), nodePolyfills({ include: ['buffer'] }), tailwindcss(), sveltekit()],
 	optimizeDeps: {
 		exclude: ['@breeztech/breez-sdk-liquid/web']
 	}
