@@ -6,7 +6,8 @@ import {
 	getWalletInfo,
 	getSavedMnemonic
 } from '$lib/services/walletService';
-import { payments, networks } from 'liquidjs-lib';
+import liquidjs from 'liquidjs-lib';
+const { payments, networks } = liquidjs;
 
 export interface WalletState {
 	initialized: boolean;
@@ -45,7 +46,7 @@ function createWalletStore() {
 				mnemonic,
 				walletConfig.cosignerPublicKeys,
 				walletConfig.threshold,
-				0
+				walletConfig.signerIndex ?? 0
 			);
 
 			// The wallet config now contains the definitive list of ALL public keys.

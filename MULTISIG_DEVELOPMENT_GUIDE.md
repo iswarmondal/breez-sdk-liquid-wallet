@@ -82,8 +82,8 @@ Currently, signature collection is simulated. You need to implement:
 ### Step 1: Install Cryptographic Dependencies
 
 ```bash
-npm install bitcoinjs-lib @noble/secp256k1 @noble/hashes bip39 bip32
-npm install -D @types/bitcoin
+bun add bitcoinjs-lib @noble/secp256k1 @noble/hashes bip39 bip32
+bun add -d @types/bitcoin
 ```
 
 ### Step 2: Implement Key Derivation
@@ -236,7 +236,7 @@ describe('MultiSig Signer', () => {
 ### Unit Tests
 
 ```bash
-npm test
+bun test
 ```
 
 ### Integration Testing

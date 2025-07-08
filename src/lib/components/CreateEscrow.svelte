@@ -66,7 +66,7 @@
 		<div class="card-actions mt-4 justify-end">
 			<button class="btn btn-primary" on:click={handleCreateEscrow} disabled={isLoading}>
 				{#if isLoading}
-					<span class="loading loading-spinner loading-xs" />
+					<span class="loading loading-spinner loading-xs"></span>
 				{/if}
 				Create PSBT
 			</button>
@@ -82,14 +82,18 @@
 			<div class="mt-4">
 				<h4 class="font-bold">Transaction PSBT:</h4>
 				<textarea class="textarea textarea-bordered mt-2 w-full" rows="4" readonly>{psbt}</textarea>
-				<button class="btn btn-sm mt-2" on:click={() => navigator.clipboard.writeText(psbt)}>Copy PSBT</button>
+				<button class="btn btn-sm mt-2" on:click={() => navigator.clipboard.writeText(psbt)}
+					>Copy PSBT</button
+				>
 			</div>
 		{/if}
 
 		{#if psbtDetails}
 			<div class="mt-4">
 				<h4 class="font-bold">Transaction Details:</h4>
-				<pre class="bg-base-300 p-2 rounded-md text-xs"><code>{JSON.stringify(psbtDetails, null, 2)}</code></pre>
+				<pre class="bg-base-300 rounded-md p-2 text-xs"><code
+						>{JSON.stringify(psbtDetails, null, 2)}</code
+					></pre>
 			</div>
 		{/if}
 	</div>

@@ -1,4 +1,5 @@
-import { networks, Psbt, address as liquidAddress, payments } from 'liquidjs-lib';
+import liquidjs from 'liquidjs-lib';
+const { networks, Psbt, address: liquidAddress, payments } = liquidjs;
 import type { MultiSigSigner } from './customSigner';
 import { sha256 } from '@noble/hashes/sha2';
 
