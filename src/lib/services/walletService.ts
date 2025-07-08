@@ -1,8 +1,11 @@
 import * as breezSdk from '@breeztech/breez-sdk-liquid/web';
 import { MultiSigSigner, createMultiSigSigner } from './customSigner';
+import { coordinationService } from './coordinationService';
+import type { PayOnchainRequest, SendPaymentResponse } from '@breeztech/breez-sdk-liquid/web';
 
 // Private SDK instance - not exposed outside this module
 let sdk: breezSdk.BindingLiquidSdk | null = null;
+let multiSigSigner: MultiSigSigner | null = null;
 
 export const initWallet = async (mnemonic: string): Promise<void> => {
 	try {
@@ -42,7 +45,7 @@ export const initWalletWithMultisig = async (
 	cosignerPublicKeys: string[], // Public keys of other signers
 	threshold: number, // Minimum signatures required (e.g., 2 for 2-of-3)
 	signerIndex: number // This signer's position (0, 1, 2, etc.)
-): Promise<void> => {
+): Promise<MultiSigSigner> => {
 	try {
 		// Create the SDK config
 		const config = breezSdk.defaultConfig('testnet');
@@ -65,12 +68,17 @@ export const initWalletWithMultisig = async (
 			signerIndex
 		);
 
+		// Store the signer instance so we can access its custom methods
+		multiSigSigner = customSigner;
+		coordinationService.setSigner(multiSigSigner);
+
 		// Connect using the custom signer instead of mnemonic
 		sdk = await breezSdk.connectWithSigner({ config }, customSigner);
 
 		console.log('Multisig wallet initialized successfully');
 		console.log(`Configuration: ${threshold}-of-${cosignerPublicKeys.length + 1} multisig`);
 		console.log(`Your signer index: ${signerIndex}`);
+		return customSigner;
 	} catch (error) {
 		console.error('Failed to initialize multisig wallet:', error);
 		throw error;
@@ -81,50 +89,54 @@ export const initWalletWithMultisig = async (
  * Check if current wallet is using multisig
  * This helps UI components know what features to show
  */
-export const isMultisigWallet = (): boolean => {
-	// You could store this flag when initializing the wallet
-	// For now, we'll check if there's a custom signer instance
-	return localStorage.getItem('walletType') === 'multisig';
-};
+// DEPRECATED: Use storageService instead
+// export const isMultisigWallet = (): boolean => {
+// 	// You could store this flag when initializing the wallet
+// 	// For now, we'll check if there's a custom signer instance
+// 	return localStorage.getItem('walletType') === 'multisig';
+// };
 
 /**
  * Save multisig configuration to localStorage
  * This helps restore the wallet on app restart
  */
-export const saveMultisigConfig = (config: {
-	threshold: number;
-	cosignerPublicKeys: string[];
-	signerIndex: number;
-}): void => {
-	localStorage.setItem('walletType', 'multisig');
-	localStorage.setItem('multisigConfig', JSON.stringify(config));
-};
+// DEPRECATED: Use storageService instead
+// export const saveMultisigConfig = (config: {
+// 	threshold: number;
+// 	cosignerPublicKeys: string[];
+// 	signerIndex: number;
+// }): void => {
+// 	localStorage.setItem('walletType', 'multisig');
+// 	localStorage.setItem('multisigConfig', JSON.stringify(config));
+// };
 
 /**
  * Get saved multisig configuration
  */
-export const getMultisigConfig = (): {
-	threshold: number;
-	cosignerPublicKeys: string[];
-	signerIndex: number;
-} | null => {
-	const configStr = localStorage.getItem('multisigConfig');
-	if (!configStr) return null;
+// DEPRECATED: Use storageService instead
+// export const getMultisigConfig = (): {
+// 	threshold: number;
+// 	cosignerPublicKeys: string[];
+// 	signerIndex: number;
+// } | null => {
+// 	const configStr = localStorage.getItem('multisigConfig');
+// 	if (!configStr) return null;
 
-	try {
-		return JSON.parse(configStr);
-	} catch {
-		return null;
-	}
-};
+// 	try {
+// 		return JSON.parse(configStr);
+// 	} catch {
+// 		return null;
+// 	}
+// };
 
 /**
  * Clear multisig configuration
  */
-export const clearMultisigConfig = (): void => {
-	localStorage.removeItem('walletType');
-	localStorage.removeItem('multisigConfig');
-};
+// DEPRECATED: Use storageService instead
+// export const clearMultisigConfig = (): void => {
+// 	localStorage.removeItem('walletType');
+// 	localStorage.removeItem('multisigConfig');
+// };
 
 // Add specific methods for actions components need to perform
 // Payment Operations
@@ -161,6 +173,82 @@ export const payOnchain = async (
 	if (!sdk) throw new Error('SDK not initialized');
 	return await sdk.payOnchain(params);
 };
+
+/**
+ * Initiates a multisig on-chain Liquid payment by creating a PSBT.
+ */
+export const createMultisigTx = async (
+	pubkeys: Buffer[],
+	threshold: number,
+	outputs: { address: string; value: number }[]
+): Promise<string> => {
+	if (!sdk) throw new Error('SDK not initialized');
+
+	// The coordination service now handles PSBT creation
+	const psbtBase64 = await coordinationService.createPsbt({ pubkeys, threshold, outputs });
+	return psbtBase64;
+};
+
+/**
+ * Extracts human-readable details from a PSBT string.
+ */
+export const getPsbtDetails = (psbtBase64: string) => {
+	if (!sdk) throw new Error('SDK not initialized');
+	return coordinationService.extractPsbtDetails(psbtBase64);
+};
+
+/**
+ * Signs a PSBT.
+ */
+export const signPsbt = (psbtBase64: string): string => {
+	if (!sdk) throw new Error('SDK not initialized');
+	return coordinationService.signPsbt(psbtBase64);
+};
+
+/**
+ * Finalizes a PSBT and returns the transaction hex.
+ */
+export const finalizePsbt = (psbtBase64: string): string => {
+	if (!sdk) throw new Error('SDK not initialized');
+	return coordinationService.finalizePsbt(psbtBase64);
+};
+
+/**
+ * Broadcasts a finalized, signed transaction to the network.
+ */
+export const broadcastTransaction = async (txHex: string): Promise<string> => {
+	if (!sdk) throw new Error('SDK not initialized');
+	// This is a placeholder for the actual broadcast logic.
+	// In a real application, you would use an API like Blockstream's.
+	console.log('--- SIMULATING BROADCAST ---');
+	console.log('Transaction Hex:', txHex);
+	console.log('--- WOULD BROADCAST TO LIQUID NETWORK ---');
+
+	// For the POC, we'll return a dummy transaction ID.
+	const dummyTxId = 'poc_broadcast_tx_' + Date.now();
+	return Promise.resolve(dummyTxId);
+};
+
+// The methods below are now obsolete with the new PSBT-based flow.
+/*
+export const signMessage = async (message: number[]): Promise<number[]> => {
+	if (!sdk) throw new Error('SDK not initialized');
+	// The Breez SDK's `signMessage` method will delegate to our custom signer
+	const result = await sdk.signMessage({ message: Buffer.from(message).toString('hex') });
+	const signatureBytes = Buffer.from(result.signature, 'hex');
+	return Array.from(signatureBytes);
+};
+
+
+export const encryptForCosigner = async (message: number[]): Promise<number[]> => {
+	if (!sdk) throw new Error('SDK not initialized');
+	if (!multiSigSigner) {
+		throw new Error('Multisig signer not initialized. Cannot encrypt.');
+	}
+	// Directly call the eciesEncrypt method on our signer instance
+	return multiSigSigner.eciesEncrypt(message);
+};
+*/
 
 // Invoice and Receiving Operations
 export const fetchLightningLimits = async (): Promise<breezSdk.LightningPaymentLimitsResponse> => {
@@ -240,26 +328,37 @@ export const getWalletInfo = async (): Promise<breezSdk.GetInfoResponse | null> 
 	}
 
 	try {
-		return await sdk.getInfo();
+		const info = await sdk.getInfo();
+		console.log('Wallet Info:', JSON.stringify(info, null, 2));
+		return info;
 	} catch (error) {
 		console.error('Failed to get wallet info:', error);
 		throw error;
 	}
 };
 
-export const getTransactions = async (): Promise<breezSdk.Payment[]> => {
+export const getWalletAddress = async (): Promise<string | null> => {
 	if (!sdk) {
-		return [];
+		return null;
 	}
-
 	try {
-		return await sdk.listPayments({
-			sortAscending: false // Most recent first
-		});
+		// Assuming the address is available in getInfo() response.
+		// This might need correction based on actual SDK output.
+		const info = await sdk.getInfo();
+		// Common patterns for address field are 'address', 'receiveAddress', 'onchainAddress'.
+		// I'm using a plausible assumption here.
+		return (info as any).address || null;
 	} catch (error) {
-		console.error('Failed to get transactions:', error);
+		console.error('Failed to get wallet address:', error);
 		throw error;
 	}
+};
+
+export const getTransactions = async (): Promise<breezSdk.Payment[]> => {
+	if (!sdk) throw new Error('SDK not initialized');
+	return await sdk.listPayments({
+		sortAscending: false // Most recent first
+	});
 };
 
 export const disconnect = async (): Promise<void> => {

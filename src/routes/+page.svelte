@@ -18,6 +18,9 @@
 	function goToWallet() {
 		goto('/wallet');
 	}
+	function goToWallets() {
+		goto('/wallets');
+	}
 </script>
 
 <div class="flex min-h-[60vh] items-center justify-center">
@@ -62,10 +65,21 @@
 
 			<div class="flex w-full max-w-xs flex-col gap-4">
 				{#if hasWallet}
-					<button onclick={goToWallet} class="btn btn-primary btn-lg">Open Wallet</button>
+					<button onclick={goToWallet} class="btn btn-primary btn-lg"
+						>Open Single-Signer Wallet</button
+					>
+					<button onclick={goToWallets} class="btn btn-secondary btn-lg"
+						>Manage Multisig Wallets</button
+					>
 				{:else}
-					<button onclick={goToCreate} class="btn btn-primary btn-lg">Create Wallet</button>
-					<button onclick={goToImport} class="btn btn-secondary btn-lg">Import Wallet</button>
+					<button onclick={goToCreate} class="btn btn-primary btn-lg"
+						>Create Single-Signer Wallet</button
+					>
+					<button onclick={goToImport} class="btn btn-secondary btn-lg"
+						>Import Single-Signer Wallet</button
+					>
+					<div class="divider">OR</div>
+					<button onclick={goToWallets} class="btn btn-accent btn-lg">Set Up Multisig</button>
 				{/if}
 			</div>
 		</div>

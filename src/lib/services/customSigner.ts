@@ -5,9 +5,45 @@ import type { RecoveryIdType } from 'tiny-secp256k1';
 import * as ecc from 'tiny-secp256k1';
 import { hmac } from '@noble/hashes/hmac';
 import { sha256 } from '@noble/hashes/sha2';
+import { hkdf } from '@noble/hashes/hkdf';
+import { randomBytes } from '@noble/hashes/utils';
 
 // Create bip32 instance with tiny-secp256k1
 const bip32 = BIP32Factory(ecc);
+
+// A BIP32 xpub is 78 bytes long. This helper function manually constructs it.
+// 4 bytes: version
+// 1 byte: depth
+// 4 bytes: parent fingerprint
+// 4 bytes: child index
+// 32 bytes: chain code
+// 33 bytes: public key
+function serializeXpub(
+	hdNode: BIP32Interface,
+	version: number = 0x043587cf /* testnet public */
+): Uint8Array {
+	const buffer = Buffer.alloc(78);
+
+	// 4 bytes version
+	buffer.writeUInt32BE(version, 0);
+
+	// 1 byte depth
+	buffer.writeUInt8(hdNode.depth, 4);
+
+	// 4 bytes parent fingerprint
+	buffer.writeUInt32BE(hdNode.parentFingerprint, 5);
+
+	// 4 bytes child index
+	buffer.writeUInt32BE(hdNode.index, 9);
+
+	// 32 bytes chain code
+	Buffer.from(hdNode.chainCode).copy(buffer, 13);
+
+	// 33 bytes public key
+	Buffer.from(hdNode.publicKey).copy(buffer, 45);
+
+	return buffer;
+}
 
 /**
  * Custom Multi-Signature Signer for Breez SDK
@@ -39,8 +75,9 @@ export class MultiSigSigner implements breezSdk.Signer {
 	 */
 	xpub = (): number[] => {
 		try {
-			console.log('Deriving xpub from master key');
-			return Array.from(this.hdNode.publicKey);
+			// Manually serialize the xpub into the 78-byte format
+			const xpubBytes = serializeXpub(this.hdNode);
+			return Array.from(xpubBytes);
 		} catch (error) {
 			console.error('Error deriving xpub:', error);
 			throw error;
@@ -53,18 +90,10 @@ export class MultiSigSigner implements breezSdk.Signer {
 	 */
 	deriveXpub = (derivationPath: string): number[] => {
 		try {
-			console.log(`Deriving xpub for path: ${derivationPath}`);
-			// TODO: Implement proper key derivation using BIP32
-			// This would typically use libraries like bitcoinjs-lib or similar
-
-			// Placeholder: return a derived key based on path
-			// In a real implementation, you'd:
-			// 1. Parse the derivation path
-			// 2. Apply BIP32 key derivation
-			// 3. Return the derived public key
-
 			const derivedNode = this.hdNode.derivePath(derivationPath);
-			return Array.from(derivedNode.publicKey);
+			// Manually serialize the xpub into the 78-byte format
+			const xpubBytes = serializeXpub(derivedNode);
+			return Array.from(xpubBytes);
 		} catch (error) {
 			console.error('Error deriving xpub for path:', derivationPath, error);
 			throw error;
@@ -77,9 +106,6 @@ export class MultiSigSigner implements breezSdk.Signer {
 	 */
 	signEcdsa = (msg: number[], derivationPath: string): number[] => {
 		try {
-			console.log(`Signing message with ECDSA for path: ${derivationPath}`);
-			console.log('Message to sign (first 10 bytes):', msg.slice(0, 10));
-
 			// Step 1: Derive the specific private key for this path
 			const childNode = this.hdNode.derivePath(derivationPath);
 
@@ -106,14 +132,6 @@ export class MultiSigSigner implements breezSdk.Signer {
 				throw new Error('Created signature is invalid - this should not happen');
 			}
 
-			console.log(`✅ Successfully signed message with key at path: ${derivationPath}`);
-			console.log(`📝 Signature length: ${signature.length} bytes`);
-			console.log(
-				`🔑 Public key: ${Array.from(childNode.publicKey)
-					.map((b) => b.toString(16).padStart(2, '0'))
-					.join('')}`
-			);
-
 			// Step 6: Return signature as number array (what Breez SDK expects)
 			return Array.from(signature);
 		} catch (error) {
@@ -129,9 +147,6 @@ export class MultiSigSigner implements breezSdk.Signer {
 	 */
 	signEcdsaRecoverable = (msg: number[]): number[] => {
 		try {
-			console.log('Signing message with recoverable ECDSA');
-			console.log('Message to sign (first 10 bytes):', msg.slice(0, 10));
-
 			// For recoverable ECDSA, we typically use the master key directly
 			// (not a derived key) as it's often used for general message signing
 			if (!this.hdNode.privateKey) {
@@ -167,11 +182,6 @@ export class MultiSigSigner implements breezSdk.Signer {
 			recoverableSignature.set(signature, 0); // First 64 bytes: signature
 			recoverableSignature[64] = recoveryId; // Last byte: recovery ID
 
-			console.log(`✅ Successfully created recoverable signature`);
-			console.log(`📝 Signature length: ${signature.length} bytes`);
-			console.log(`🔄 Recovery ID: ${recoveryId}`);
-			console.log(`🔑 Public key recovered successfully`);
-
 			// Step 6: Return as number array (what Breez SDK expects)
 			return Array.from(recoverableSignature);
 		} catch (error) {
@@ -190,19 +200,13 @@ export class MultiSigSigner implements breezSdk.Signer {
 		recoveryId: RecoveryIdType
 	): Uint8Array | null => {
 		try {
-			console.log(`🔍 Attempting to recover public key with recovery ID: ${recoveryId}`);
-
 			// Use tiny-secp256k1's recover function to get the public key
 			// The recover function signature is: recover(hash, signature, recoveryId, compressed = false)
 			const recoveredKey = ecc.recover(messageHash, signature, recoveryId, true); // compressed = true
 
 			if (!recoveredKey) {
-				console.log(`❌ Recovery failed for recovery ID: ${recoveryId}`);
 				return null;
 			}
-
-			console.log(`✅ Successfully recovered public key using recovery ID: ${recoveryId}`);
-			console.log(`📏 Recovered key length: ${recoveredKey.length} bytes`);
 
 			// Convert Buffer to Uint8Array if needed
 			return new Uint8Array(recoveredKey);
@@ -224,14 +228,27 @@ export class MultiSigSigner implements breezSdk.Signer {
 	};
 
 	/**
+	 * Constant-time equality comparison to prevent timing attacks
+	 * This is crucial for cryptographic operations like authentication tag verification
+	 */
+	private constantTimeEquals = (a: Uint8Array, b: Uint8Array): boolean => {
+		if (a.length !== b.length) return false;
+
+		let result = 0;
+		for (let i = 0; i < a.length; i++) {
+			result |= a[i] ^ b[i];
+		}
+
+		return result === 0;
+	};
+
+	/**
 	 * Get the SLIP-77 master blinding key
 	 * Used for Liquid confidential transactions
-	 * TODO: Implement when privacy features are needed
+	 * TODO: Implement when privacy features are needed currently not required
 	 */
 	slip77MasterBlindingKey = (): number[] => {
 		try {
-			console.log('Getting SLIP-77 master blinding key (placeholder)');
-
 			// TODO: Implement proper SLIP-77 key derivation when privacy features are needed
 			// For now, return a deterministic placeholder based on the master key
 			return Array.from(this.hdNode.publicKey.slice(0, 32));
@@ -247,9 +264,6 @@ export class MultiSigSigner implements breezSdk.Signer {
 	 */
 	hmacSha256 = (msg: number[], derivationPath: string): number[] => {
 		try {
-			console.log(`Computing HMAC-SHA256 for path: ${derivationPath}`);
-			console.log('Message to authenticate (first 10 bytes):', msg.slice(0, 10));
-
 			// Step 1: Derive the specific private key for this derivation path
 			// This key will be used as the HMAC secret key
 			const childNode = this.hdNode.derivePath(derivationPath);
@@ -265,10 +279,6 @@ export class MultiSigSigner implements breezSdk.Signer {
 			// The private key provides the secret that authenticates the message
 			const hmacKey = childNode.privateKey;
 
-			console.log(`🔑 Using derived key from path: ${derivationPath}`);
-			console.log(`📝 Message length: ${messageBytes.length} bytes`);
-			console.log(`🗝️ HMAC key length: ${hmacKey.length} bytes`);
-
 			// Step 4: Compute HMAC-SHA256
 			// HMAC(key, message) = SHA256(key ⊕ opad || SHA256(key ⊕ ipad || message))
 			// ⊕ is the XOR operation and || is the concatenation operation
@@ -281,8 +291,6 @@ export class MultiSigSigner implements breezSdk.Signer {
 			}
 
 			// Step 6: Cross-check HMAC result by recomputing and verifying consistency
-			console.log(`🔍 Cross-checking HMAC computation...`);
-
 			// Recompute HMAC with the same inputs to verify consistency
 			const hmacVerification = hmac(sha256, hmacKey, messageBytes);
 
@@ -303,15 +311,6 @@ export class MultiSigSigner implements breezSdk.Signer {
 				}
 			}
 
-			console.log(`✅ Successfully computed and verified HMAC-SHA256`);
-			console.log(`📏 HMAC result length: ${hmacResult.length} bytes`);
-			console.log(
-				`🔍 HMAC (first 8 bytes): ${Array.from(hmacResult.slice(0, 8))
-					.map((b) => b.toString(16).padStart(2, '0'))
-					.join('')}`
-			);
-			console.log(`🔐 HMAC verification: PASSED`);
-
 			// Step 7: Return as number array (what Breez SDK expects)
 			return Array.from(hmacResult);
 		} catch (error) {
@@ -321,87 +320,171 @@ export class MultiSigSigner implements breezSdk.Signer {
 	};
 
 	/**
-	 * Encrypt a message using ECIES
-	 * Used for secure communication
+	 * Encrypt a message using ECIES (Elliptic Curve Integrated Encryption Scheme)
+	 * Used for secure communication between multisig parties
+	 *
+	 * ECIES Process:
+	 * 1. Generate ephemeral key pair (random private key + public key)
+	 * 2. Perform ECDH with recipient's public key
+	 * 3. Derive encryption key using HKDF
+	 * 4. Encrypt message with derived key
+	 * 5. Return: ephemeral_public_key + encrypted_message + auth_tag
 	 */
 	eciesEncrypt = (msg: number[]): number[] => {
 		try {
-			console.log('Encrypting message with ECIES');
+			// Step 1: Generate ephemeral key pair for this encryption
+			const ephemeralPrivateKey = randomBytes(32);
+			const ephemeralPublicKey = ecc.pointFromScalar(ephemeralPrivateKey, true);
 
-			// TODO: Implement ECIES encryption
-			// ECIES combines ECDH key agreement with symmetric encryption
+			if (!ephemeralPublicKey) {
+				throw new Error('Failed to generate ephemeral public key');
+			}
 
-			// Placeholder: return encrypted message (in reality, longer than input)
-			return [...msg, ...new Array(16).fill(0).map(() => Math.floor(Math.random() * 256))];
+			// Step 2: Use recipient's public key (first cosigner for demo)
+			// In practice, you'd specify which cosigner to encrypt for
+			const recipientPublicKey = this.cosignerKeys[0] || this.hdNode.publicKey;
+
+			// Step 3: Perform ECDH (Elliptic Curve Diffie-Hellman) key agreement
+			const sharedSecret = ecc.pointMultiply(recipientPublicKey, ephemeralPrivateKey, true);
+
+			if (!sharedSecret) {
+				throw new Error('Failed to compute ECDH shared secret');
+			}
+
+			// Step 4: Derive encryption key using HKDF (HMAC-based Key Derivation Function)
+			// HKDF expands the shared secret into cryptographically strong key material
+			const info = new TextEncoder().encode('ECIES_ENCRYPTION_KEY');
+			const salt = new Uint8Array(32); // Zero salt for simplicity
+			const derivedKeyResult = hkdf(sha256, sharedSecret, salt, info, 64); // 64 bytes = 32 for encryption + 32 for HMAC
+			const derivedKey = Uint8Array.from(derivedKeyResult); // Convert to proper Uint8Array
+
+			const encryptionKey = derivedKey.slice(0, 32); // First 32 bytes for encryption
+			const hmacKey = derivedKey.slice(32, 64); // Next 32 bytes for authentication
+
+			// Step 5: Encrypt the message using XOR cipher (simple but effective for demo)
+			// In production, you'd use AES-256-GCM or similar
+			const messageBytes = new Uint8Array(msg);
+			const encryptedMessage = new Uint8Array(messageBytes.length);
+
+			// Generate key stream by hashing the encryption key repeatedly
+			let keyStream = encryptionKey;
+			for (let i = 0; i < messageBytes.length; i++) {
+				if (i % 32 === 0 && i > 0) {
+					// Refresh key stream every 32 bytes
+					keyStream = new Uint8Array(sha256(keyStream));
+				}
+				encryptedMessage[i] = messageBytes[i] ^ keyStream[i % 32];
+			}
+
+			// Step 6: Create authentication tag using HMAC
+			const authData = new Uint8Array(ephemeralPublicKey.length + encryptedMessage.length);
+			authData.set(ephemeralPublicKey, 0);
+			authData.set(encryptedMessage, ephemeralPublicKey.length);
+
+			const authTag = hmac(sha256, hmacKey, authData);
+
+			// Step 7: Combine everything into final encrypted payload
+			// Format: ephemeral_public_key (33 bytes) + encrypted_message (variable) + auth_tag (32 bytes)
+			const encryptedPayload = new Uint8Array(
+				ephemeralPublicKey.length + encryptedMessage.length + authTag.length
+			);
+
+			let offset = 0;
+			encryptedPayload.set(ephemeralPublicKey, offset);
+			offset += ephemeralPublicKey.length;
+			encryptedPayload.set(encryptedMessage, offset);
+			offset += encryptedMessage.length;
+			encryptedPayload.set(authTag, offset);
+
+			return Array.from(encryptedPayload);
 		} catch (error) {
-			console.error('Error encrypting with ECIES:', error);
+			console.error('❌ Error encrypting with ECIES:', error);
 			throw error;
 		}
 	};
 
 	/**
-	 * Decrypt a message using ECIES
-	 * Used for secure communication
+	 * Decrypt a message using ECIES (Elliptic Curve Integrated Encryption Scheme)
+	 * Used for secure communication between multisig parties
+	 *
+	 * ECIES Decryption Process:
+	 * 1. Parse encrypted payload: ephemeral_public_key + encrypted_message + auth_tag
+	 * 2. Perform ECDH with ephemeral public key and our private key
+	 * 3. Derive decryption key using HKDF
+	 * 4. Verify authentication tag
+	 * 5. Decrypt message with derived key
 	 */
 	eciesDecrypt = (msg: number[]): number[] => {
 		try {
-			console.log('Decrypting message with ECIES');
+			const encryptedPayload = new Uint8Array(msg);
 
-			// TODO: Implement ECIES decryption
+			// Step 1: Parse the encrypted payload
+			// Format: ephemeral_public_key (33 bytes) + encrypted_message (variable) + auth_tag (32 bytes)
+			const ephemeralPublicKeyLength = 33; // Compressed public key
+			const authTagLength = 32; // SHA256 HMAC tag
 
-			// Placeholder: return "decrypted" message (shorter than input)
-			return msg.slice(0, -16);
+			if (encryptedPayload.length < ephemeralPublicKeyLength + authTagLength) {
+				throw new Error('Invalid encrypted payload: too short');
+			}
+
+			const ephemeralPublicKey = encryptedPayload.slice(0, ephemeralPublicKeyLength);
+			const encryptedMessage = encryptedPayload.slice(
+				ephemeralPublicKeyLength,
+				encryptedPayload.length - authTagLength
+			);
+			const receivedAuthTag = encryptedPayload.slice(encryptedPayload.length - authTagLength);
+
+			// Step 2: Perform ECDH using our private key and the ephemeral public key
+			if (!this.hdNode.privateKey) {
+				throw new Error('No private key available for ECIES decryption');
+			}
+
+			const sharedSecret = ecc.pointMultiply(ephemeralPublicKey, this.hdNode.privateKey, true);
+
+			if (!sharedSecret) {
+				throw new Error('Failed to compute ECDH shared secret');
+			}
+
+			// Step 3: Derive decryption key using HKDF (same as encryption)
+			const info = new TextEncoder().encode('ECIES_ENCRYPTION_KEY');
+			const salt = new Uint8Array(32); // Zero salt for simplicity
+			const derivedKeyResult = hkdf(sha256, sharedSecret, salt, info, 64); // 64 bytes = 32 for encryption + 32 for HMAC
+			const derivedKey = Uint8Array.from(derivedKeyResult); // Convert to proper Uint8Array
+
+			const decryptionKey = derivedKey.slice(0, 32); // First 32 bytes for decryption
+			const hmacKey = derivedKey.slice(32, 64); // Next 32 bytes for authentication
+
+			// Step 4: Verify authentication tag
+			const authData = new Uint8Array(ephemeralPublicKey.length + encryptedMessage.length);
+			authData.set(ephemeralPublicKey, 0);
+			authData.set(encryptedMessage, ephemeralPublicKey.length);
+
+			const computedAuthTag = hmac(sha256, hmacKey, authData);
+
+			// Compare authentication tags in constant time to prevent timing attacks
+			if (!this.constantTimeEquals(receivedAuthTag, computedAuthTag)) {
+				throw new Error('Authentication tag verification failed - message may be tampered');
+			}
+
+			// Step 5: Decrypt the message using XOR cipher (same as encryption)
+			const decryptedMessage = new Uint8Array(encryptedMessage.length);
+
+			// Generate the same key stream used for encryption
+			let keyStream = decryptionKey;
+			for (let i = 0; i < encryptedMessage.length; i++) {
+				if (i % 32 === 0 && i > 0) {
+					// Refresh key stream every 32 bytes
+					keyStream = new Uint8Array(sha256(keyStream));
+				}
+				decryptedMessage[i] = encryptedMessage[i] ^ keyStream[i % 32];
+			}
+
+			return Array.from(decryptedMessage);
 		} catch (error) {
-			console.error('Error decrypting with ECIES:', error);
+			console.error('❌ Error decrypting with ECIES:', error);
 			throw error;
 		}
 	};
-
-	// Helper methods for multisig coordination
-
-	/**
-	 * Coordinate signature collection from other signers
-	 * This is specific to multisig and not part of the Signer interface
-	 */
-	async collectSignatures(
-		message: number[],
-		derivationPath: string
-	): Promise<{ signatures: number[][]; signerIndices: number[] }> {
-		console.log('Starting signature collection for multisig transaction');
-
-		// TODO: Implement signature collection mechanism
-		// This could involve:
-		// 1. HTTP requests to other signers' APIs
-		// 2. Hardware wallet integration
-		// 3. User interface for manual signature input
-		// 4. Secure communication protocols
-
-		const signatures: number[][] = [];
-		const signerIndices: number[] = [];
-
-		// Add our own signature
-		const ourSignature = this.signEcdsa(message, derivationPath);
-		signatures.push(ourSignature);
-		signerIndices.push(this.signerIndex);
-
-		// TODO: Collect signatures from other parties
-		// For now, simulate collecting threshold-1 more signatures
-		for (let i = 0; i < this.threshold - 1; i++) {
-			// In reality, you'd request signatures from other cosigners
-			const dummySignature = new Array(64).fill(0).map(() => Math.floor(Math.random() * 256));
-			signatures.push(dummySignature);
-			signerIndices.push(i + 1);
-		}
-
-		return { signatures, signerIndices };
-	}
-
-	/**
-	 * Check if we have enough signatures to meet the threshold
-	 */
-	hasEnoughSignatures(signatures: number[][]): boolean {
-		return signatures.length >= this.threshold;
-	}
 }
 
 /**
@@ -447,7 +530,6 @@ export async function createMultiSigSigner(
 				bytes[i / 2] = parseInt(hexByte, 16);
 			}
 
-			console.log(`Converted public key: ${key} -> ${bytes.length} bytes`);
 			return bytes;
 		});
 

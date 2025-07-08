@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { initWallet, getSavedMnemonic } from '$lib/services/walletService';
+	import { initWallet, getSavedMnemonic, getWalletInfo } from '$lib/services/walletService';
 	import Transactions from '$lib/components/Transactions.svelte';
 	import Send from '$lib/components/Send.svelte';
 	import Receive from '$lib/components/Receive.svelte';
@@ -19,6 +19,7 @@
 				throw new Error('No mnemonic found in local storage. Please create or import a wallet.');
 			}
 			await initWallet(mnemonic);
+			await getWalletInfo();
 		} catch (err) {
 			error = err instanceof Error ? err.stack || err.message : JSON.stringify(err);
 		} finally {
