@@ -243,22 +243,6 @@ export class MultiSigSigner implements breezSdk.Signer {
 	};
 
 	/**
-	 * Get the SLIP-77 master blinding key
-	 * Used for Liquid confidential transactions
-	 * TODO: Implement when privacy features are needed currently not required
-	 */
-	slip77MasterBlindingKey = (): number[] => {
-		try {
-			// TODO: Implement proper SLIP-77 key derivation when privacy features are needed
-			// For now, return a deterministic placeholder based on the master key
-			return Array.from(this.hdNode.publicKey.slice(0, 32));
-		} catch (error) {
-			console.error('Error getting SLIP-77 master blinding key:', error);
-			throw error;
-		}
-	};
-
-	/**
 	 * Compute HMAC-SHA256 (Hash-based Message Authentication Code)
 	 * Used for various cryptographic operations including key derivation and message authentication
 	 */
@@ -484,6 +468,14 @@ export class MultiSigSigner implements breezSdk.Signer {
 			console.error('❌ Error decrypting with ECIES:', error);
 			throw error;
 		}
+	};
+
+	/**
+	 * Stub for SLIP-77 master blinding key (required by Breez SDK, even if not used)
+	 */
+	slip77MasterBlindingKey = (): number[] => {
+		// Return a deterministic placeholder (e.g., first 32 bytes of the public key)
+		return Array.from(this.hdNode.publicKey.slice(0, 32));
 	};
 }
 

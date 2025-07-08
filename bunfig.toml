@@ -1,0 +1,4 @@
+[install]
+# Equivalent to engine-strict=true
+# Makes the bundler respect engines.node field in package.json
+engine-strict = true 

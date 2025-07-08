@@ -45,7 +45,7 @@ function createWalletStore() {
 				mnemonic,
 				walletConfig.cosignerPublicKeys,
 				walletConfig.threshold,
-				0
+				walletConfig.signerIndex ?? 0
 			);
 
 			// The wallet config now contains the definitive list of ALL public keys.

@@ -24,6 +24,9 @@
 	let joinCode = '';
 	let joinError = '';
 
+	let mySignerIndex: number | null = null;
+	let myPubKeyInput = '';
+
 	async function generatePublicKey() {
 		const mnemonic = getSavedMnemonic();
 		if (!mnemonic) {
@@ -105,19 +108,35 @@
 	}
 
 	function finalizeSetup() {
-		// This is where the creator would input the public keys of the other participants
-		// For the POC, we'll assume this is done and create the wallet config
-		// In a real app, this would be driven by the coordination service
-		const otherKeys = Array(totalSigners - 1).fill('').map((_, i) => prompt(`Enter public key for participant ${i + 2}`)).filter(Boolean) as string[];
-		const allKeys = [myPublicKey, ...otherKeys];
-
+		// Prompt for all public keys and let the user select their own
+		const pubKeys: string[] = [];
+		for (let i = 0; i < totalSigners; i++) {
+			const key = prompt(`Enter public key for participant ${i + 1}`);
+			if (!key) {
+				alert('All public keys are required.');
+				return;
+			}
+			pubKeys.push(key);
+		}
+		// Ask user which index is theirs
+		const indexStr = prompt(`Which index (1-${totalSigners}) is your public key?`);
+		const index = indexStr ? parseInt(indexStr, 10) - 1 : -1;
+		if (index < 0 || index >= totalSigners) {
+			alert('Invalid index.');
+			return;
+		}
+		mySignerIndex = index;
+		myPubKeyInput = pubKeys[index];
+		const cosignerPublicKeys = pubKeys.filter((_, i) => i !== index);
 		const config: MultisigWalletConfig = {
-			id: `ms_${new Date().getTime()}`, // Temporary ID
+			id: `ms_${new Date().getTime()}`,
 			label,
 			threshold,
-			cosignerPublicKeys: otherKeys,
-			allPublicKeys: allKeys,
-			creationDate: new Date().toISOString()
+			cosignerPublicKeys,
+			allPublicKeys: pubKeys,
+			creationDate: new Date().toISOString(),
+			// @ts-ignore
+			signerIndex: mySignerIndex
 		};
 		storageService.addWallet(config);
 		newWalletConfig = config;
@@ -128,12 +147,16 @@
 <div class="mx-auto max-w-2xl p-4 font-sans">
 	<h2 class="mb-6 text-center text-3xl font-bold text-gray-100">Escrow Wallet Setup</h2>
 
-	<div class="tabs tabs-boxed mb-6 bg-base-300">
-		<button class="tab tab-lg" class:tab-active={activeTab === 'create'} on:click={() => (activeTab = 'create')}
-			>Create New Escrow</button
+	<div class="tabs tabs-boxed bg-base-300 mb-6">
+		<button
+			class="tab tab-lg"
+			class:tab-active={activeTab === 'create'}
+			on:click={() => (activeTab = 'create')}>Create New Escrow</button
 		>
-		<button class="tab tab-lg" class:tab-active={activeTab === 'join'} on:click={() => (activeTab = 'join')}
-			>Join Existing Escrow</button
+		<button
+			class="tab tab-lg"
+			class:tab-active={activeTab === 'join'}
+			on:click={() => (activeTab = 'join')}>Join Existing Escrow</button
 		>
 	</div>
 
@@ -196,20 +219,31 @@
 
 				{#if step === 'SHARE'}
 					<h3 class="card-title">2. Share Your Public Key & Invite Others</h3>
-					<p>Share your public key with the other participants. Then, provide them with the invitation code below so they can join.</p>
+					<p>
+						Share your public key with the other participants. Then, provide them with the
+						invitation code below so they can join.
+					</p>
 					<div class="form-control mt-4 w-full">
 						<label class="label">
 							<span class="label-text font-semibold">Your Public Key</span>
 						</label>
 						<input type="text" readonly value={myPublicKey} class="input input-bordered w-full" />
-						<button class="btn btn-sm mt-2" on:click={() => navigator.clipboard.writeText(myPublicKey)}>Copy Key</button>
+						<button
+							class="btn btn-sm mt-2"
+							on:click={() => navigator.clipboard.writeText(myPublicKey)}>Copy Key</button
+						>
 					</div>
 					<div class="form-control mt-4 w-full">
 						<label class="label">
 							<span class="label-text font-semibold">Invitation Code</span>
 						</label>
-						<textarea readonly class="textarea textarea-bordered w-full" rows="3">{createJoinCode()}</textarea>
-						<button class="btn btn-sm mt-2" on:click={() => navigator.clipboard.writeText(createJoinCode())}>Copy Code</button>
+						<textarea readonly class="textarea textarea-bordered w-full" rows="3"
+							>{createJoinCode()}</textarea
+						>
+						<button
+							class="btn btn-sm mt-2"
+							on:click={() => navigator.clipboard.writeText(createJoinCode())}>Copy Code</button
+						>
 					</div>
 					<div class="card-actions mt-4 justify-end">
 						<button class="btn btn-primary" on:click={finalizeSetup}>Finalize (POC only)</button>
@@ -219,14 +253,21 @@
 				{#if step === 'FINALIZE'}
 					<h3 class="card-title">3. Escrow Wallet Created!</h3>
 					<div class="alert alert-success">
-						<p>Your new escrow wallet has been configured. Once all participants have joined and confirmed, it will be ready to use.</p>
+						<p>
+							Your new escrow wallet has been configured. Once all participants have joined and
+							confirmed, it will be ready to use.
+						</p>
 					</div>
 					<div class="mt-4">
 						<h4 class="font-bold">Wallet Details:</h4>
-						<pre class="bg-base-300 p-2 rounded-md text-xs"><code>{JSON.stringify(newWalletConfig, null, 2)}</code></pre>
+						<pre class="bg-base-300 rounded-md p-2 text-xs"><code
+								>{JSON.stringify(newWalletConfig, null, 2)}</code
+							></pre>
 					</div>
 					<div class="card-actions mt-4 justify-end">
-						<button class="btn" on:click={() => goto(`/wallets/${newWalletConfig?.id}`)}>Go to Wallet</button>
+						<button class="btn" on:click={() => goto(`/wallets/${newWalletConfig?.id}`)}
+							>Go to Wallet</button
+						>
 					</div>
 				{/if}
 
@@ -246,7 +287,13 @@
 					<label for="joinCode" class="label">
 						<span class="label-text font-semibold">Invitation Code</span>
 					</label>
-					<textarea id="joinCode" bind:value={joinCode} class="textarea textarea-bordered w-full" rows="4" placeholder="Paste the invitation code here"></textarea>
+					<textarea
+						id="joinCode"
+						bind:value={joinCode}
+						class="textarea textarea-bordered w-full"
+						rows="4"
+						placeholder="Paste the invitation code here"
+					></textarea>
 				</div>
 				<div class="card-actions mt-4 justify-end">
 					<button class="btn btn-primary" on:click={handleJoin}>Join Escrow</button>
